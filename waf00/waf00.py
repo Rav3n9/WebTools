@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-wafdetect.py — Advanced WAF/Firewall Detection Tool
+waf00.py — Advanced WAF/Firewall Detection Tool
 ====================================================
 Multi-layer detection engine:
   Layer 1: Passive fingerprinting  (headers, cookies, server tokens)
@@ -16,8 +16,8 @@ Overcomes WAFW00F limitations:
   - Custom WAFs        → body/timing/status-code delta catches them all
 
 Usage:
-  python wafdetect.py <target> [options]
-  python wafdetect.py https://example.com -v --report report.json
+  python waf00.py <target> [options]
+  python waf00.py https://example.com -v --report report.json
 """
 
 import argparse
@@ -43,7 +43,7 @@ except ImportError:
 # CONSTANTS & CONFIGURATION
 # ─────────────────────────────────────────────────────────────────────────────
 VERSION = "1.0.0"
-TOOL_NAME = "wafdetect"
+TOOL_NAME = "waf00"
 
 DEFAULT_TIMEOUT = 10          # seconds per request
 MIN_DELAY       = 0.8         # minimum seconds between probes
@@ -1071,7 +1071,7 @@ def _print_dim(msg):   print(_c(f"    {msg}", "90"))
 def print_banner():
     banner = """
   +--------------------------------------------------+
-  |   wafdetect  v{version:<10}                        |
+  |   waf00 v{version:<10}                           |
   |   Advanced WAF / Firewall Detection Tool         |
   |   4-layer: Passive | Active | Behavioral | Score |
   +--------------------------------------------------+
@@ -1167,12 +1167,12 @@ def build_parser() -> argparse.ArgumentParser:
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  python wafdetect.py https://example.com
-  python wafdetect.py example.com -v
-  python wafdetect.py https://target.com --passive-only
-  python wafdetect.py https://target.com --report results.json
-  python wafdetect.py https://target.com --proxy http://127.0.0.1:8080
-  python wafdetect.py https://target.com --timeout 15 -v --report out.json
+  python waf00.py https://example.com
+  python waf00.py example.com -v
+  python waf00.py https://target.com --passive-only
+  python waf00.py https://target.com --report results.json
+  python waf00.py https://target.com --proxy http://127.0.0.1:8080
+  python waf00.py https://target.com --timeout 15 -v --report out.json
         """,
     )
     p.add_argument("target", help="Target URL or domain (e.g. https://example.com or example.com)")
