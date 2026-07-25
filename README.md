@@ -26,7 +26,7 @@ The goal is to make WAF detection more transparent, useful, and easy to automate
 Clone the repository:
 
 ```bash
-git clone https://github.com/Rav3n9/WebTools/WAFDetect.git
+git clone https://github.com/Rav3n9/WebTools/WAF00.git
 cd WAFDetect
 ```
 
