@@ -2,9 +2,10 @@
 
 WAF00 is a lightweight Python tool for identifying Web Application Firewalls (WAFs). It combines passive fingerprinting with active probing to improve detection accuracy while showing the evidence behind each result instead of simply guessing.
 
-The goal is to make WAF detection more transparent, useful, and easy to automate.
+Instead of relying only on static signatures, waf00 compares how a target responds to normal and suspicious requests, making it useful for identifying both well-known WAFs and custom filtering behavior.
 
-> **For authorized security testing only.**
+
+> Built for penetration testers, bug bounty hunters, and security researchers.
 
 ---
 
@@ -91,11 +92,11 @@ py waf00.py https://target.com --proxy http://127.0.0.1:8080 --diff
 
 ---
 
-## Why WAFDetect?
+## Why waf00?
 
-Many WAF detection tools only tell you *what* they think is protecting a website. WAFDetect also tries to show *why* it reached that conclusion by collecting evidence from headers, response behavior, and probe differences.
+Signature-based detection is fast, but modern WAF deployments are often customized or sit behind CDNs, making identification more difficult.
 
-It's designed to be useful for penetration testers, bug bounty hunters, and anyone who wants a quick WAF check without digging through raw HTTP responses.
+waf00 combines traditional fingerprinting with behavioral analysis and evidence-based scoring to provide more transparent results. Rather than simply reporting a possible vendor, it shows the indicators that contributed to the detection, making the output easier to validate and investigate.
 
 ---
 
