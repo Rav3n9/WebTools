@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-wafdetect_v2.py  --  Advanced WAF & CDN Detection Tool v2
+waf00_v2.py  --  Advanced WAF & CDN Detection Tool v2
 ==========================================================
 What makes this different:
   - External JSON signature database  (signatures/waf/ and signatures/cdn/)
@@ -15,10 +15,10 @@ What makes this different:
   - Answers: What WAF? How confident? Why? What evidence? What changed?
 
 Usage:
-  py wafdetect_v2.py https://target.com
-  py wafdetect_v2.py https://target.com --passive
-  py wafdetect_v2.py https://target.com --active --threads 5 --diff
-  py wafdetect_v2.py https://target.com --aggressive --evidence --json out.json
+  py waf00_v2.py https://target.com
+  py waf00_v2.py https://target.com --passive
+  py waf00_v2.py https://target.com --active --threads 5 --diff
+  py waf00_v2.py https://target.com --aggressive --evidence --json out.json
 """
 
 import argparse
@@ -43,7 +43,7 @@ except ImportError:
     sys.exit(1)
 
 VERSION       = "2.0.0"
-TOOL_NAME     = "wafdetect_v2"
+TOOL_NAME     = "waf00_v2"
 SCRIPT_DIR    = Path(__file__).parent
 SIG_WAF_DIR   = SCRIPT_DIR / "signatures" / "waf"
 SIG_CDN_DIR   = SCRIPT_DIR / "signatures" / "cdn"
@@ -942,9 +942,9 @@ def _cd(m):  print(_c(f"    {m}", "90"))
 def print_banner():
     print(_c("""
   +------------------------------------------------------------+
-  |  wafdetect v2.0  --  Advanced WAF & CDN Detection Tool    |
-  |  Passive | Active | Aggressive | Behavioral | DNS | Diff  |
-  |  Plugin signatures: signatures/waf/ + signatures/cdn/     |
+  |  waf00 v2.0  --  Advanced WAF & CDN Detection Tool         |
+  |  Passive | Active | Aggressive | Behavioral | DNS | Diff   |
+  |  Plugin signatures: signatures/waf/ + signatures/cdn/      |
   +------------------------------------------------------------+
 """, "96"))
 
@@ -1071,11 +1071,11 @@ Output flags:
   --json FILE     Save machine-readable JSON report to FILE
 
 Examples:
-  py wafdetect_v2.py https://example.com
-  py wafdetect_v2.py https://target.com --passive --evidence
-  py wafdetect_v2.py https://target.com --active --diff --threads 5
-  py wafdetect_v2.py https://target.com --aggressive --evidence --diff --json report.json
-  py wafdetect_v2.py https://target.com --proxy http://127.0.0.1:8080 --diff
+  py waf00_v2.py https://example.com
+  py waf00_v2.py https://target.com --passive --evidence
+  py waf00_v2.py https://target.com --active --diff --threads 5
+  py waf00_v2.py https://target.com --aggressive --evidence --diff --json report.json
+  py waf00_v2.py https://target.com --proxy http://127.0.0.1:8080 --diff
         """,
     )
     # target
