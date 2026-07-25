@@ -45,7 +45,7 @@ pip install -r requirements.txt
 Only sends a single request.
 
 ```bash
-py wafdetect_v2.py https://target.com --passive --evidence
+py waf00.py https://target.com --passive --evidence
 ```
 
 ### Active scan
@@ -53,7 +53,7 @@ py wafdetect_v2.py https://target.com --passive --evidence
 Uses multiple probes to increase detection accuracy.
 
 ```bash
-py wafdetect_v2.py https://target.com --diff --evidence
+py waf00.py https://target.com --diff --evidence
 ```
 
 ### Aggressive mode
@@ -61,19 +61,19 @@ py wafdetect_v2.py https://target.com --diff --evidence
 Runs additional probes to gather more evidence.
 
 ```bash
-py wafdetect_v2.py https://target.com --aggressive --diff --evidence
+py waf00.py https://target.com --aggressive --diff --evidence
 ```
 
 ### Save results as JSON
 
 ```bash
-py wafdetect_v2.py https://target.com --evidence --json report.json
+py waf00.py https://target.com --evidence --json report.json
 ```
 
 ### Send traffic through Burp Suite
 
 ```bash
-py wafdetect_v2.py https://target.com --proxy http://127.0.0.1:8080 --diff
+py waf00.py https://target.com --proxy http://127.0.0.1:8080 --diff
 ```
 
 ---
