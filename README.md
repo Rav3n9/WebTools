@@ -27,7 +27,7 @@ Clone the repository:
 
 ```bash
 git clone https://github.com/Rav3n9/WebTools/WAF00.git
-cd WAFDetect
+cd WebTools/WAF00
 ```
 
 Install the required packages:
