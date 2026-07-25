@@ -104,4 +104,6 @@ waf00 combines traditional fingerprinting with behavioral analysis and evidence-
 
 Only use this tool against systems you own or have permission to test. The author is not responsible for any misuse.
 
+---
+
 GG
