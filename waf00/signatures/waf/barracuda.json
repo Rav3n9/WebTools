@@ -1,0 +1,19 @@
+{
+  "name": "Barracuda WAF",
+  "type": "WAF",
+  "vendor": "Barracuda Networks",
+  "confidence_weight": 35,
+  "headers": {
+    "server": "Barracuda",
+    "x-barracuda-id": ".+"
+  },
+  "cookies": ["^barra_counter_session", "^BNI__BARRACUDA_LB_COOKIE"],
+  "body_patterns": [
+    "barracuda",
+    "Barracuda Networks",
+    "You have been blocked",
+    "barra_counter_session"
+  ],
+  "block_status_codes": [403, 400],
+  "notes": "BNI__BARRACUDA_LB_COOKIE is load balancer cookie, often seen with WAF."
+}

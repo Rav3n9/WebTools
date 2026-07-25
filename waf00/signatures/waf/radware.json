@@ -1,0 +1,19 @@
+{
+  "name": "Radware AppWall",
+  "type": "WAF",
+  "vendor": "Radware",
+  "confidence_weight": 35,
+  "headers": {
+    "x-sl-compstate": ".+",
+    "server": "Radware"
+  },
+  "cookies": ["^RADWARE_SESSION"],
+  "body_patterns": [
+    "Radware",
+    "AppWall",
+    "The page cannot be displayed.*Radware",
+    "RDWR"
+  ],
+  "block_status_codes": [403, 400],
+  "notes": "x-sl-compstate header is unique to Radware compression state tracking."
+}

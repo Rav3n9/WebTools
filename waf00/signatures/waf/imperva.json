@@ -1,0 +1,19 @@
+{
+  "name": "Imperva Incapsula",
+  "type": "WAF",
+  "vendor": "Imperva",
+  "confidence_weight": 35,
+  "headers": {
+    "x-iinfo": ".+",
+    "x-cdn": "Incapsula"
+  },
+  "cookies": ["^incap_ses", "^visid_incap", "^nlbi_"],
+  "body_patterns": [
+    "Incapsula incident ID",
+    "incapsula",
+    "/_Incapsula_Resource",
+    "Request unsuccessful\\. Incapsula incident"
+  ],
+  "block_status_codes": [403, 401],
+  "notes": "visid_incap and incap_ses cookies are definitive Imperva indicators."
+}

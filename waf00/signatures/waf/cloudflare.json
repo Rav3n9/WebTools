@@ -1,0 +1,22 @@
+{
+  "name": "Cloudflare",
+  "type": "WAF",
+  "vendor": "Cloudflare Inc.",
+  "confidence_weight": 35,
+  "headers": {
+    "server": "cloudflare",
+    "cf-ray": ".+",
+    "cf-cache-status": ".+",
+    "cf-request-id": ".+"
+  },
+  "cookies": ["^__cflb$", "^cf_clearance$", "^__cf_bm$", "^_cfuvid$"],
+  "body_patterns": [
+    "cloudflare",
+    "Attention Required.*Cloudflare",
+    "Ray ID:?\\s*[0-9a-f]{16}",
+    "cdn-cgi/challenge-platform",
+    "DDoS protection by Cloudflare"
+  ],
+  "block_status_codes": [403, 429, 503, 1020],
+  "notes": "cf-ray header is definitive. Also acts as CDN."
+}

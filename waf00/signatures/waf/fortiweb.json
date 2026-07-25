@@ -1,0 +1,19 @@
+{
+  "name": "Fortinet FortiWeb",
+  "type": "WAF",
+  "vendor": "Fortinet",
+  "confidence_weight": 35,
+  "headers": {
+    "server": "FortiWeb",
+    "fortiwafsid": ".+"
+  },
+  "cookies": ["^FORTIWAFSID"],
+  "body_patterns": [
+    "FortiWeb",
+    "Powered by FortiWeb",
+    "Your request has been blocked by FortiWeb",
+    "fortigate"
+  ],
+  "block_status_codes": [403, 503],
+  "notes": "FORTIWAFSID cookie is definitive. Server header often reveals version."
+}

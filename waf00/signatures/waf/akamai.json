@@ -1,0 +1,23 @@
+{
+  "name": "Akamai",
+  "type": "WAF",
+  "vendor": "Akamai Technologies",
+  "confidence_weight": 35,
+  "headers": {
+    "x-akamai-transformed": ".+",
+    "x-akamai-request-id": ".+",
+    "x-check-cacheable": ".+",
+    "akamai-origin-hop": ".+",
+    "x-akamai-ssl-client-sid": ".+"
+  },
+  "cookies": ["^ak_bmsc$", "^bm_sz$", "^bm_sv$", "^bm_mi$"],
+  "body_patterns": [
+    "akamai",
+    "The requested URL was rejected",
+    "Reference #\\d+\\.\\w+\\.\\d+",
+    "Access Denied.*Akamai",
+    "AkamaiGHost"
+  ],
+  "block_status_codes": [403, 400],
+  "notes": "bm_sz cookie is bot manager. x-akamai-transformed is strong signal."
+}

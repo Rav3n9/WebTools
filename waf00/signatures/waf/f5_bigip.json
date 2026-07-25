@@ -1,0 +1,21 @@
+{
+  "name": "F5 BIG-IP ASM",
+  "type": "WAF",
+  "vendor": "F5 Networks",
+  "confidence_weight": 35,
+  "headers": {
+    "server": "BigIP|BIG-IP|F5 BIG-IP",
+    "x-cnection": ".+"
+  },
+  "cookies": ["^BIGipServer", "^TS[0-9a-f]{8}"],
+  "body_patterns": [
+    "BIG-IP",
+    "The requested URL was rejected",
+    "Please consult with your administrator",
+    "Reference ID:\\s+[\\w.]+",
+    "ASM:.*blocked",
+    "F5 Networks"
+  ],
+  "block_status_codes": [403, 400],
+  "notes": "BIGipServer cookie format: BIGipServerPOOL_NAME. TS cookie is session persistence."
+}

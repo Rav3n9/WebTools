@@ -1,0 +1,21 @@
+{
+  "name": "Azure Front Door WAF",
+  "type": "WAF",
+  "vendor": "Microsoft Azure",
+  "confidence_weight": 35,
+  "headers": {
+    "x-azure-ref": ".+",
+    "x-ms-request-id": ".+",
+    "x-fd-healthprobe": ".+",
+    "x-cache": "TCP_HIT|TCP_MISS"
+  },
+  "cookies": [],
+  "body_patterns": [
+    "Azure Front Door",
+    "microsoft\\.com.*blocked",
+    "The request is blocked",
+    "Microsoft-Azure-Application-Gateway"
+  ],
+  "block_status_codes": [403, 400],
+  "notes": "x-azure-ref is definitive Azure Front Door. Also check for Application Gateway."
+}

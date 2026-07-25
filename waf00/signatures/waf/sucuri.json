@@ -1,0 +1,21 @@
+{
+  "name": "Sucuri",
+  "type": "WAF",
+  "vendor": "GoDaddy / Sucuri",
+  "confidence_weight": 35,
+  "headers": {
+    "x-sucuri-id": ".+",
+    "x-sucuri-cache": ".+",
+    "server": "Sucuri/Cloudproxy"
+  },
+  "cookies": [],
+  "body_patterns": [
+    "Sucuri Website Firewall",
+    "sucuri\\.net",
+    "Access Denied - Sucuri",
+    "cloudproxy\\.sucuri\\.net",
+    "Sucuri WebSite Firewall - Access Denied"
+  ],
+  "block_status_codes": [403, 500],
+  "notes": "x-sucuri-id header is definitive. Common on WordPress sites."
+}

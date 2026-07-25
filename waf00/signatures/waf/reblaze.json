@@ -1,0 +1,17 @@
+{
+  "name": "Reblaze",
+  "type": "WAF",
+  "vendor": "Reblaze Technologies",
+  "confidence_weight": 35,
+  "headers": {
+    "x-reblaze-protection": ".+",
+    "server": "reblaze"
+  },
+  "cookies": ["^rbzid", "^rbzsessionid"],
+  "body_patterns": [
+    "reblaze",
+    "Access Denied.*Reblaze"
+  ],
+  "block_status_codes": [403],
+  "notes": "rbzid cookie is unique to Reblaze bot management."
+}
