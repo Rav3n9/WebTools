@@ -1,0 +1,21 @@
+{
+  "name": "Fastly",
+  "type": "CDN",
+  "vendor": "Fastly Inc.",
+  "confidence_weight": 25,
+  "headers": {
+    "x-fastly-request-id": ".+",
+    "fastly-restarts": ".+",
+    "x-served-by": "cache-",
+    "x-cache": "HIT|MISS",
+    "x-cache-hits": ".+"
+  },
+  "cookies": [],
+  "body_patterns": [
+    "Fastly error",
+    "fastly\\.com",
+    "Varnish cache server"
+  ],
+  "block_status_codes": [503],
+  "notes": "Fastly uses Varnish underneath. x-served-by shows PoP location."
+}

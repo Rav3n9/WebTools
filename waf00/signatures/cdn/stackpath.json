@@ -1,0 +1,19 @@
+{
+  "name": "StackPath",
+  "type": "CDN",
+  "vendor": "StackPath LLC",
+  "confidence_weight": 25,
+  "headers": {
+    "x-sp-waf": ".+",
+    "server": "StackPath",
+    "x-hw": ".+"
+  },
+  "cookies": [],
+  "body_patterns": [
+    "StackPath",
+    "stackpath\\.com",
+    "MaxCDN"
+  ],
+  "block_status_codes": [403],
+  "notes": "Formerly MaxCDN. x-hw header is unique to StackPath edge nodes."
+}

@@ -1,0 +1,18 @@
+{
+  "name": "Akamai CDN",
+  "type": "CDN",
+  "vendor": "Akamai Technologies",
+  "confidence_weight": 30,
+  "headers": {
+    "x-check-cacheable": ".+",
+    "akamai-origin-hop": ".+",
+    "x-akamai-transformed": ".+",
+    "server": "AkamaiGHost"
+  },
+  "cookies": [],
+  "body_patterns": [
+    "AkamaiGHost"
+  ],
+  "block_status_codes": [],
+  "notes": "AkamaiGHost in server or Via header is definitive CDN signal."
+}

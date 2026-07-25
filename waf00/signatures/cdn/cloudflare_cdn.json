@@ -1,0 +1,15 @@
+{
+  "name": "Cloudflare CDN",
+  "type": "CDN",
+  "vendor": "Cloudflare Inc.",
+  "confidence_weight": 30,
+  "headers": {
+    "cf-ray": ".+",
+    "cf-cache-status": "HIT|MISS|EXPIRED|STALE|REVALIDATED|UPDATING|DYNAMIC|BYPASS",
+    "server": "cloudflare"
+  },
+  "cookies": [],
+  "body_patterns": [],
+  "block_status_codes": [],
+  "notes": "Cloudflare is CDN + WAF combined. cf-cache-status reveals caching layer."
+}
