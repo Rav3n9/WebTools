@@ -455,18 +455,20 @@ class DNSDetector:
     All DNS calls run in a daemon thread with a hard 4s timeout to avoid blocking.
     """
 
+    # Maps a CNAME regex to ALL sig names it should fire evidence for.
+    # Key   = regex matched against each hop in the CNAME chain
+    # Value = list of sig names — one entry per WAF sig AND CDN sig that share
+    #         this infrastructure, so DNS evidence feeds both classification buckets.
     CDN_CNAME_PATTERNS = {
-        "Cloudflare":        r"cloudflare\.net$",
-        "Akamai":            r"akamai(edge|\.net|technologies)\.com$",
-        "Amazon CloudFront": r"cloudfront\.net$",
-        "Fastly":            r"fastly\.net$",
-        "Sucuri":            r"sucuri\.net$",
-        "StackPath":         r"(stackpathdns|hwcdn)\.net$",
-        "Imperva":           r"incapdns\.net$",
-        "Azure Front Door":  r"azurefd\.net$",
-        "Radware":           r"radwarecloud\.com$",
-        "Cloudflare CDN":    r"cloudflare\.net$",
-        "Akamai CDN":        r"akamai(edge|\.net|technologies)\.com$",
+        r"cloudflare\.net$":                    ["Cloudflare", "Cloudflare CDN"],
+        r"akamai(edge|\.net|technologies)\.com$": ["Akamai", "Akamai CDN"],
+        r"cloudfront\.net$":                    ["Amazon CloudFront"],
+        r"fastly\.net$":                        ["Fastly"],
+        r"sucuri\.net$":                        ["Sucuri"],
+        r"(stackpathdns|hwcdn)\.net$":          ["StackPath"],
+        r"incapdns\.net$":                      ["Imperva Incapsula"],
+        r"azurefd\.net$":                       ["Azure Front Door WAF"],
+        r"radwarecloud\.com$":                  ["Radware AppWall"],
     }
 
     def detect(self, hostname: str) -> tuple:
@@ -527,16 +529,17 @@ class DNSDetector:
 
         # Match every CNAME in the chain against CDN patterns
         for cname in dns_info["cnames"]:
-            for vendor, pattern in self.CDN_CNAME_PATTERNS.items():
+            for pattern, sig_names in self.CDN_CNAME_PATTERNS.items():
                 if re.search(pattern, cname, re.IGNORECASE):
-                    evidence.append(Evidence(
-                        detector="dns",
-                        evidence_type="dns",
-                        detail=f"CNAME '{cname}' resolves to {vendor} infrastructure",
-                        matched_name=vendor,
-                        confidence_pts=25,
-                    ))
-                    break  # one match per CNAME hop
+                    for sig_name in sig_names:
+                        evidence.append(Evidence(
+                            detector="dns",
+                            evidence_type="dns",
+                            detail=f"CNAME '{cname}' resolves to {sig_name} infrastructure",
+                            matched_name=sig_name,
+                            confidence_pts=25,
+                        ))
+                    break  # one pattern match per CNAME hop is enough
 
         return evidence, dns_info
 
