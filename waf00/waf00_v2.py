@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-waf00_v2.py  --  Advanced WAF & CDN Detection Tool v2
+wafdetect_v2.py  --  Advanced WAF & CDN Detection Tool v2
 ==========================================================
 What makes this different:
   - External JSON signature database  (signatures/waf/ and signatures/cdn/)
@@ -15,10 +15,10 @@ What makes this different:
   - Answers: What WAF? How confident? Why? What evidence? What changed?
 
 Usage:
-  py waf00_v2.py https://target.com
-  py waf00_v2.py https://target.com --passive
-  py waf00_v2.py https://target.com --active --threads 5 --diff
-  py waf00_v2.py https://target.com --aggressive --evidence --json out.json
+  py wafdetect_v2.py https://target.com
+  py wafdetect_v2.py https://target.com --passive
+  py wafdetect_v2.py https://target.com --active --threads 5 --diff
+  py wafdetect_v2.py https://target.com --aggressive --evidence --json out.json
 """
 
 import argparse
@@ -28,11 +28,14 @@ import random
 import re
 import socket
 import sys
+import threading
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field, asdict
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
+from urllib.parse import urlparse
 
 try:
     import requests
@@ -42,8 +45,16 @@ except ImportError:
     print("[!] Missing: pip install requests")
     sys.exit(1)
 
+# Enable ANSI colours on Windows once at startup
+try:
+    import ctypes
+    ctypes.windll.kernel32.SetConsoleMode(
+        ctypes.windll.kernel32.GetStdHandle(-11), 7)
+except Exception:
+    pass
+
 VERSION       = "2.0.0"
-TOOL_NAME     = "waf00_v2"
+TOOL_NAME     = "wafdetect_v2"
 SCRIPT_DIR    = Path(__file__).parent
 SIG_WAF_DIR   = SCRIPT_DIR / "signatures" / "waf"
 SIG_CDN_DIR   = SCRIPT_DIR / "signatures" / "cdn"
@@ -211,6 +222,10 @@ class SignatureDB:
         self.cdn_sigs: list = []
         self._load(SIG_WAF_DIR, self.waf_sigs)
         self._load(SIG_CDN_DIR, self.cdn_sigs)
+        # Build a merged set of ALL vendor-defined block codes + global fallback
+        self._all_block_codes: set = set(BLOCK_STATUS_CODES)
+        for sig in self.all_sigs:
+            self._all_block_codes.update(sig.get("block_status_codes", []))
 
     def _load(self, directory: Path, target: list):
         if not directory.exists():
@@ -230,6 +245,33 @@ class SignatureDB:
 
     def summary(self) -> str:
         return f"{len(self.waf_sigs)} WAF sigs, {len(self.cdn_sigs)} CDN sigs loaded from {SIG_WAF_DIR.parent}"
+
+    def match_body(self, body: str) -> Optional[str]:
+        """
+        Shared body-matching method used by both PassiveDetector and ActiveDetector.
+        Returns the first matched vendor name, or None.
+        Uses re.DOTALL | re.IGNORECASE so multi-line HTML blocks match correctly.
+        """
+        body_lower = body.lower()
+        for sig in self.all_sigs:
+            for pat in sig.get("body_patterns", []):
+                if re.search(pat, body_lower, re.IGNORECASE | re.DOTALL):
+                    return sig["name"]
+        return None
+
+    def is_block_status(self, status_code: int, sig_name: Optional[str] = None) -> bool:
+        """
+        Returns True if status_code is a known block code.
+        If sig_name is given, also checks that vendor's specific block codes
+        (e.g. Cloudflare 1020 is not in the global set but is in cloudflare.json).
+        """
+        if status_code in self._all_block_codes:
+            return True
+        if sig_name:
+            for sig in self.all_sigs:
+                if sig["name"] == sig_name:
+                    return status_code in sig.get("block_status_codes", [])
+        return False
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -268,12 +310,13 @@ class HTTPClient:
         if extra_headers:
             hdrs.update(extra_headers)
 
+        verify = self.verify   # local copy — never mutate self.verify
         for attempt in range(MAX_RETRIES + 1):
             t0 = time.time()
             try:
                 resp = self.session.request(
                     method, url, headers=hdrs,
-                    timeout=self.timeout, verify=self.verify,
+                    timeout=self.timeout, verify=verify,
                     proxies=self.proxies, allow_redirects=True
                 )
                 elapsed = round(time.time() - t0, 3)
@@ -291,7 +334,7 @@ class HTTPClient:
                     cookies={c.name: c.value for c in resp.cookies},
                 )
             except requests.exceptions.SSLError:
-                self.verify = False
+                verify = False          # retry without SSL — scoped to this call only
                 if attempt == MAX_RETRIES:
                     return Response(url=url, method=method, status_code=0,
                                     response_time=0, headers={}, body="",
@@ -363,9 +406,9 @@ class PassiveDetector:
                         ))
                         break
 
-            # body
+            # body — re.DOTALL ensures multi-line HTML blocks match correctly
             for bpat in sig.get("body_patterns", []):
-                if re.search(bpat, body, re.IGNORECASE):
+                if re.search(bpat, body, re.IGNORECASE | re.DOTALL):
                     evidence.append(Evidence(
                         detector="passive_body",
                         evidence_type="body",
@@ -374,6 +417,19 @@ class PassiveDetector:
                         confidence_pts=w,
                     ))
                     break  # one body hit per sig
+
+            # per-vendor block status codes (e.g. Cloudflare 1020)
+            resp_status = resp.status_code
+            for vcode in sig.get("block_status_codes", []):
+                if resp_status == vcode and vcode not in BLOCK_STATUS_CODES:
+                    evidence.append(Evidence(
+                        detector="passive_header",
+                        evidence_type="status",
+                        detail=f"Vendor-specific block status HTTP {vcode} matches {name}",
+                        matched_name=name,
+                        confidence_pts=w,
+                    ))
+                    break
 
         # generic security headers (no specific vendor)
         generic_sec = ["x-waf-event-info", "x-protected-by", "x-firewall-protection",
@@ -394,50 +450,94 @@ class PassiveDetector:
 class DNSDetector:
     """
     Layer 2: DNS-based fingerprinting.
-    Resolves the target hostname and checks for CDN/WAF IP ranges and CNAME patterns.
-    Fully passive — only DNS queries, no HTTP.
+    Primary: uses dnspython for real CNAME chain resolution (pip install dnspython).
+    Fallback: socket.getaddrinfo for IP resolution only.
+    All DNS calls run in a daemon thread with a hard 4s timeout to avoid blocking.
     """
 
     CDN_CNAME_PATTERNS = {
-        "Cloudflare":       r"cloudflare\.net$",
-        "Akamai":           r"akamai(edge|\.net|technologies)\.com$",
-        "Amazon CloudFront":r"cloudfront\.net$",
-        "Fastly":           r"fastly\.net$",
-        "Sucuri":           r"sucuri\.net$",
-        "StackPath":        r"(stackpathdns|hwcdn)\.net$",
-        "Imperva":          r"incapdns\.net$",
-        "Azure Front Door": r"azurefd\.net$",
-        "Radware":          r"radwarecloud\.com$",
+        "Cloudflare":        r"cloudflare\.net$",
+        "Akamai":            r"akamai(edge|\.net|technologies)\.com$",
+        "Amazon CloudFront": r"cloudfront\.net$",
+        "Fastly":            r"fastly\.net$",
+        "Sucuri":            r"sucuri\.net$",
+        "StackPath":         r"(stackpathdns|hwcdn)\.net$",
+        "Imperva":           r"incapdns\.net$",
+        "Azure Front Door":  r"azurefd\.net$",
+        "Radware":           r"radwarecloud\.com$",
+        "Cloudflare CDN":    r"cloudflare\.net$",
+        "Akamai CDN":        r"akamai(edge|\.net|technologies)\.com$",
     }
 
     def detect(self, hostname: str) -> tuple:
         """Returns (evidence: list, dns_info: dict)"""
-        import threading
         evidence = []
-        dns_info = {"hostname": hostname, "ips": [], "cnames": []}
+        dns_info: dict = {"hostname": hostname, "ips": [], "cnames": []}
 
         if not hostname:
             return evidence, dns_info
 
-        holder: dict = {"done": False}
+        holder: dict = {}
 
         def _resolve():
+            # ── IP addresses ──────────────────────────────────────────────
             try:
                 ips = list({r[4][0] for r in socket.getaddrinfo(hostname, 80)})
                 holder["ips"] = ips
             except Exception:
                 holder["ips"] = []
-            holder["done"] = True
+
+            # ── CNAME chain — try dnspython first, stdlib fallback ─────────
+            cnames = []
+            try:
+                import dns.resolver          # dnspython
+                name = hostname
+                for _ in range(10):          # follow chain up to 10 hops
+                    try:
+                        answers = dns.resolver.resolve(name, "CNAME")
+                        target  = str(answers[0].target).rstrip(".")
+                        cnames.append(target)
+                        name = target
+                    except Exception:
+                        break
+            except ImportError:
+                # dnspython not installed — use socket reverse DNS as limited fallback
+                try:
+                    if holder.get("ips"):
+                        rdns = socket.gethostbyaddr(holder["ips"][0])[0]
+                        if rdns.lower() != hostname.lower():
+                            cnames.append(rdns)
+                except Exception:
+                    pass
+
+            holder["cnames"] = cnames
+            holder["done"]   = True
 
         t = threading.Thread(target=_resolve, daemon=True)
         t.start()
-        t.join(timeout=3)   # hard 3s cap — if still running we skip
+        t.join(timeout=4)
 
         if not holder.get("done"):
-            # DNS timed out — skip silently
+            # timed out — return whatever IPs we may have collected
+            dns_info["ips"] = holder.get("ips", [])
             return evidence, dns_info
 
-        dns_info["ips"] = holder.get("ips", [])
+        dns_info["ips"]    = holder.get("ips", [])
+        dns_info["cnames"] = holder.get("cnames", [])
+
+        # Match every CNAME in the chain against CDN patterns
+        for cname in dns_info["cnames"]:
+            for vendor, pattern in self.CDN_CNAME_PATTERNS.items():
+                if re.search(pattern, cname, re.IGNORECASE):
+                    evidence.append(Evidence(
+                        detector="dns",
+                        evidence_type="dns",
+                        detail=f"CNAME '{cname}' resolves to {vendor} infrastructure",
+                        matched_name=vendor,
+                        confidence_pts=25,
+                    ))
+                    break  # one match per CNAME hop
+
         return evidence, dns_info
 
 class ActiveDetector:
@@ -495,24 +595,15 @@ class ActiveDetector:
         p_cookies = sorted(resp.cookies.keys())
         new_ck    = sorted(set(p_cookies) - set(b_cookies))
 
-        # check body against known WAF sigs
-        waf_body = None
-        if resp.ok:
-            body_low = resp.body.lower()
-            for sig in self.db.all_sigs:
-                for pat in sig.get("body_patterns", []):
-                    if re.search(pat, body_low, re.IGNORECASE):
-                        waf_body = sig["name"]
-                        break
-                if waf_body:
-                    break
+        # check body against known WAF sigs — use shared db.match_body() (re.DOTALL included)
+        waf_body = self.db.match_body(resp.body) if resp.ok else None
 
-        # check body against generic block patterns
+        # check body against generic block patterns (re.DOTALL for multi-line HTML)
         generic_block = False
         if resp.ok:
             body_low = resp.body.lower()
             for pat in GENERIC_BLOCK_PATTERNS:
-                if re.search(pat, body_low, re.IGNORECASE):
+                if re.search(pat, body_low, re.IGNORECASE | re.DOTALL):
                     generic_block = True
                     break
 
@@ -568,13 +659,15 @@ class ActiveDetector:
                 confidence_pts=20,
             ))
 
-        # status code block
-        if resp.status_code in BLOCK_STATUS_CODES and baseline.status_code not in BLOCK_STATUS_CODES:
+        # status code block — uses db.is_block_status() which includes per-vendor codes
+        if (self.db.is_block_status(resp.status_code)
+                and not self.db.is_block_status(baseline.status_code)):
             evidence.append(Evidence(
                 detector="active",
                 evidence_type="status",
-                detail=f"Probe '{probe['desc']}' blocked: HTTP {resp.status_code} (baseline: {baseline.status_code})",
-                matched_name=None,
+                detail=f"Probe '{probe['desc']}' blocked: HTTP {resp.status_code} "
+                       f"(baseline: {baseline.status_code})",
+                matched_name=diff.waf_body_match,  # attach vendor name if we know it
                 confidence_pts=25,
             ))
 
@@ -597,6 +690,9 @@ class BehavioralDetector:
     Detects unknown/custom WAFs that have zero signature coverage.
     """
 
+    def __init__(self, db: SignatureDB):
+        self.db = db
+
     def analyse(self, baseline: Response, diffs: list) -> list:
         evidence  = []
         valid     = [d for d in diffs if not d.error and d.status_probe > 0]
@@ -604,7 +700,7 @@ class BehavioralDetector:
             return evidence
 
         statuses      = [d.status_probe for d in valid]
-        block_count   = sum(1 for s in statuses if s in BLOCK_STATUS_CODES)
+        block_count   = sum(1 for s in statuses if self.db.is_block_status(s))
         block_rate    = block_count / len(valid)
         latencies     = [d.latency_probe for d in valid]
         body_lens     = [d.body_len_probe for d in valid]
@@ -659,7 +755,7 @@ class BehavioralDetector:
             ))
 
         # templated block page — blocked responses have near-identical body size
-        blocked_sizes = [d.body_len_probe for d in valid if d.status_probe in BLOCK_STATUS_CODES]
+        blocked_sizes = [d.body_len_probe for d in valid if self.db.is_block_status(d.status_probe)]
         if len(blocked_sizes) >= 3 and (max(blocked_sizes) - min(blocked_sizes)) < 80:
             evidence.append(Evidence(
                 detector="behavioral",
@@ -723,10 +819,13 @@ class ConfidenceEngine:
         cdn_names = sorted([n for n in name_counts if n in cdn_sig_names],
                             key=lambda k: -name_counts[k])
 
-        # classification
-        has_waf = bool(waf_names) or any(
-            e.matched_name is None and e.detector in ("active","behavioral")
-            for e in deduped
+        # classification — only set WAF if there's meaningful evidence
+        # "meaningful" = named vendor match OR score is high enough to be credible
+        has_waf = bool(waf_names) or (
+            score >= 30 and any(
+                e.matched_name is None and e.detector in ("active", "behavioral")
+                for e in deduped
+            )
         )
         has_cdn = bool(cdn_names)
 
@@ -739,9 +838,10 @@ class ConfidenceEngine:
         else:
             classification = "None"
 
-        # verdict
+        # verdict — derived from score only, never contradicts classification
         if score <= 15:
             verdict = "No WAF or CDN detected"
+            classification = "None"   # force consistent: low score → no classification
         elif score <= 35:
             verdict = "Possibly protected (low confidence) — manual review recommended"
         elif score <= 60:
@@ -778,11 +878,9 @@ class WAFScannerV2:
         return url.rstrip("/")
 
     def _hostname(self) -> str:
-        from urllib.parse import urlparse
         return urlparse(self.target).hostname or ""
 
     def scan(self) -> DetectionResult:
-        from datetime import datetime, timezone
         result = DetectionResult(
             target=self.target,
             scan_time=datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
@@ -842,7 +940,7 @@ class WAFScannerV2:
 
             # ── Behavioral analysis ───────────────────────────────────────────
             _ci("[6] Behavioral analysis ...")
-            beh_evs = BehavioralDetector().analyse(baseline, all_diffs)
+            beh_evs = BehavioralDetector(self.db).analyse(baseline, all_diffs)
             all_evidence.extend(beh_evs)
             _co(f"    {len(beh_evs)} behavioral signal(s)")
 
@@ -850,10 +948,10 @@ class WAFScannerV2:
             valid_d = [d for d in all_diffs if not d.error and d.status_probe > 0]
             if valid_d:
                 result.probe_stats = {
-                    "total":       len(probes),
-                    "successful":  len(valid_d),
-                    "blocked":     sum(1 for d in valid_d if d.status_probe in BLOCK_STATUS_CODES),
-                    "avg_latency": round(sum(d.latency_probe for d in valid_d) / len(valid_d), 3),
+                    "total":         len(probes),
+                    "successful":    len(valid_d),
+                    "blocked":       sum(1 for d in valid_d if self.db.is_block_status(d.status_probe)),
+                    "avg_latency":   round(sum(d.latency_probe for d in valid_d) / len(valid_d), 3),
                     "status_spread": sorted(set(d.status_probe for d in valid_d)),
                 }
         else:
@@ -924,12 +1022,6 @@ def _make_recs(score, waf_names, cdn_names, classification, evidence) -> list:
 # OUTPUT HELPERS
 # ─────────────────────────────────────────────────────────────────────────────
 def _c(t, code):
-    try:
-        import ctypes
-        ctypes.windll.kernel32.SetConsoleMode(
-            ctypes.windll.kernel32.GetStdHandle(-11), 7)
-    except Exception:
-        pass
     return f"\033[{code}m{t}\033[0m"
 
 def _ci(m):  print(_c(f"[*] {m}", "94"))
@@ -942,9 +1034,9 @@ def _cd(m):  print(_c(f"    {m}", "90"))
 def print_banner():
     print(_c("""
   +------------------------------------------------------------+
-  |  waf00 v2.0  --  Advanced WAF & CDN Detection Tool         |
-  |  Passive | Active | Aggressive | Behavioral | DNS | Diff   |
-  |  Plugin signatures: signatures/waf/ + signatures/cdn/      |
+  |  wafdetect v2.0  --  Advanced WAF & CDN Detection Tool    |
+  |  Passive | Active | Aggressive | Behavioral | DNS | Diff  |
+  |  Plugin signatures: signatures/waf/ + signatures/cdn/     |
   +------------------------------------------------------------+
 """, "96"))
 
@@ -1071,11 +1163,11 @@ Output flags:
   --json FILE     Save machine-readable JSON report to FILE
 
 Examples:
-  py waf00_v2.py https://example.com
-  py waf00_v2.py https://target.com --passive --evidence
-  py waf00_v2.py https://target.com --active --diff --threads 5
-  py waf00_v2.py https://target.com --aggressive --evidence --diff --json report.json
-  py waf00_v2.py https://target.com --proxy http://127.0.0.1:8080 --diff
+  py wafdetect_v2.py https://example.com
+  py wafdetect_v2.py https://target.com --passive --evidence
+  py wafdetect_v2.py https://target.com --active --diff --threads 5
+  py wafdetect_v2.py https://target.com --aggressive --evidence --diff --json report.json
+  py wafdetect_v2.py https://target.com --proxy http://127.0.0.1:8080 --diff
         """,
     )
     # target
